@@ -10,6 +10,9 @@ This repository currently contains a production-oriented skeleton with typed mod
 - env/models.py
 - env/tasks.py
 - env/grader.py
+- inference.py
+- setup_check.py
+- api.py
 - .gitignore
 
 ## What Is Implemented
@@ -101,7 +104,7 @@ Implemented in env/tasks.py.
 
 Implemented in env/environment.py.
 
-1. Environment now imports and cycles through `TASKS` from env/tasks.py on each reset.
+1. Environment now selects from `TASKS` at reset using random sampling for novelty, while still tracking `task_index`.
 2. `hidden_truth` is stored internally (`self._hidden_truth`) and not exposed in observations.
 3. Reset now starts from partial observability:
 1. patient age and condition
@@ -128,6 +131,17 @@ Implemented in env/environment.py.
 3. Added `decision_taken` state flag for future reward/grader workflows.
 4. Corrected progressive note reveal logic to reveal incrementally (`already + count`) rather than jump behavior.
 5. Added `info_level` block in observation for clearer reasoning context (`analysis`, `cost`, `guidelines`, `review`).
+
+### Step 4.2: Randomization And Uncertainty Signals
+
+Implemented in env/environment.py.
+
+1. Reset now uses `random.choice(TASKS)` to introduce task novelty across runs.
+2. Added small bounded reward noise (`random.uniform(-0.02, 0.02)`) before clamping.
+3. Added uncertainty metadata to observations:
+1. `confidence_level`
+2. `confidence.analysis_confidence`
+3. `confidence.cost_confidence`
 
 ### Step 5: Dense Reward Logic
 
@@ -188,6 +202,76 @@ Implemented in env/grader.py.
 2. Added premature-decision penalty (-0.2) for instant final decisions with no trajectory depth.
 3. Added efficiency bonus (+0.05) for concise episodes (`len(action_history) <= 4`).
 4. Updated normalization comment to explicitly state OpenEnv clamp intent.
+
+### Step 7: Deterministic Inference Script
+
+Implemented in inference.py.
+
+1. Added required imports:
+1. `os`
+2. `OpenAI`
+3. `MediGuardEnv`
+4. `grade_episode`
+2. Added required environment variable bindings:
+1. `API_BASE_URL`
+2. `MODEL_NAME`
+3. `HF_TOKEN` (as API key)
+3. Added strict logging functions with required output formats:
+1. `[START]`
+2. `[STEP]`
+3. `[END]`
+4. Added deterministic action policy (`choose_action`) based on progress flags.
+5. Implemented synchronous `main()` loop:
+1. reset environment
+2. step until done
+3. accumulate trajectory and rewards
+4. compute final score with grader
+6. Added standard entry point guard.
+
+### Step 7.1: Inference Compliance Fixes
+
+Implemented in inference.py.
+
+1. Added default fallbacks for required runtime environment variables:
+1. `API_BASE_URL` defaults to `https://router.huggingface.co/v1`
+2. `MODEL_NAME` defaults to `Qwen/Qwen2.5-72B-Instruct`
+2. Made step-level error logging spec compliant:
+1. Reads `error` from `info` when available
+2. Emits `null` when no error exists
+3. Added edge-case output hardening:
+1. ensure at least one reward value for END log
+2. ensure END step count is at least 1
+
+### Step 8: Setup Prerequisite Checker
+
+Implemented in setup_check.py.
+
+1. Added Python version validation (requires >= 3.10) and prints current version.
+2. Added Git and Docker checks via subprocess (`--version`) with install guidance on failure.
+3. Added required library checks and on-demand install flow for:
+1. openai
+2. openenv-core
+3. huggingface_hub
+4. fastapi
+5. uvicorn
+6. pydantic
+4. Added Hugging Face login readiness check via `HF_TOKEN`.
+5. Added environment variable checks for `API_BASE_URL`, `MODEL_NAME`, and `HF_TOKEN` with suggested defaults.
+6. Added final setup summary output: `Setup Complete` or `Fix required`.
+
+### Step 9: OpenEnv-Compatible FastAPI API
+
+Implemented in api.py.
+
+1. Added a lightweight FastAPI app with a single global `MediGuardEnv` instance.
+2. Exposed OpenEnv-style endpoints:
+1. `POST /reset`
+2. `POST /step`
+3. `GET /state`
+4. `GET /`
+3. Added `StepRequest` Pydantic model for step requests.
+4. Kept JSON responses simple and deterministic.
+5. Added run instruction comment for `uvicorn api:app --host 0.0.0.0 --port 8000`.
 
 ## What Is Intentionally Not Implemented Yet
 
@@ -251,6 +335,30 @@ This section is the running memory of prompt-driven changes.
 1. Added ordered-sequence bonus for analyze-before-investigate reasoning
 2. Added premature-final-decision penalty and efficiency bonus
 3. Updated clamp comment to explicitly reference OpenEnv score range
+12. Prompt Update 12
+1. Added root-level inference.py with deterministic synchronous execution loop
+2. Implemented strict START/STEP/END logging format and deterministic action policy
+3. Integrated final trajectory grading with env/grader.py
+13. Prompt Update 13
+1. Added default API base URL and model name fallbacks in inference.py
+2. Updated STEP logging to propagate real `error` values from `info`
+3. Added final log safeguards for empty rewards and zero-step edge cases
+14. Prompt Update 14
+1. Added root-level setup_check.py for deterministic prerequisite validation and install flow
+2. Implemented Python/Git/Docker checks, package auto-install, and env/HF token checks
+3. Added final setup status summary output for pass/fix reporting
+15. Prompt Update 15
+1. Added root-level api.py with FastAPI OpenEnv-compatible endpoints
+2. Exposed /reset, /step, /state, and root health message
+3. Updated README with API run and endpoint documentation
+16. Prompt Update 16
+1. Made task cycling explicit with `task_index` in reset
+2. Ensured repeated runs rotate through easy, medium, and hard tasks deterministically
+3. Updated README to reflect diversity fix for evaluation runs
+17. Prompt Update 17
+1. Added random task sampling in reset for novelty across runs
+2. Added small bounded reward noise for uncertainty realism
+3. Added observation confidence metadata and updated README accordingly
 
 ## Maintenance Rule
 

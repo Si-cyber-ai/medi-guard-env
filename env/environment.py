@@ -6,6 +6,7 @@ AI Healthcare Billing Audit & Legal Escalation workflow.
 
 from __future__ import annotations
 
+import random
 from typing import Any, Dict, List, Tuple
 
 from env.tasks import TASKS
@@ -38,7 +39,7 @@ class MediGuardEnv:
         self.current_case: Dict[str, Any] = {}
         self._visible_case: Dict[str, Any] = {}
         self._hidden_truth: Dict[str, Any] = {}
-        self._task_cursor = -1
+        self.task_index = 0
         self.step_count = 0
         self.analysis_done = False
         self.investigation_done = False
@@ -50,7 +51,12 @@ class MediGuardEnv:
 
     def reset(self) -> Dict[str, Any]:
         """Reset all environment state and return initial observation."""
-        task = self._select_task()
+        if not TASKS:
+            raise ValueError("TASKS is empty; at least one task must be defined")
+
+        task = random.choice(TASKS)
+        self.task_index = (self.task_index + 1) % len(TASKS)
+
         self.current_case = {k: v for k, v in task.items() if k != "hidden_truth"}
         self._hidden_truth = dict(task.get("hidden_truth", {}))
         self._visible_case = self._initial_visible_case(self.current_case)
@@ -180,6 +186,7 @@ class MediGuardEnv:
             reward -= 0.2
 
         # Keep reward bounded for stable optimization.
+        reward += random.uniform(-0.02, 0.02)
         reward = max(-1.0, min(1.0, reward))
         return float(reward)
 
@@ -200,14 +207,6 @@ class MediGuardEnv:
             "reveal_state": dict(self._reveal_state),
             "action_history": list(self.action_history),
         }
-
-    def _select_task(self) -> Dict[str, Any]:
-        """Select the next task in a deterministic cycle."""
-        if not TASKS:
-            raise ValueError("TASKS is empty; at least one task must be defined")
-
-        self._task_cursor = (self._task_cursor + 1) % len(TASKS)
-        return dict(TASKS[self._task_cursor])
 
     def _initial_visible_case(self, case: Dict[str, Any]) -> Dict[str, Any]:
         """Create the initial partial observation view at reset."""
@@ -349,12 +348,27 @@ class MediGuardEnv:
 
     def _build_observation(self) -> Dict[str, Any]:
         """Build observation from progressively revealed case data."""
+        confidence_level = 0.3
+        if self.analysis_done:
+            confidence_level += 0.2
+        if self.investigation_done:
+            confidence_level += 0.2
+        if self.guidelines_checked:
+            confidence_level += 0.1
+        if self.review_requested:
+            confidence_level += 0.1
+
         return {
             "current_case": dict(self._visible_case),
             "step_count": self.step_count,
             "max_steps": self.max_steps,
             "remaining_steps": self.max_steps - self.step_count,
             "available_actions": list(self.ACTION_SPACE),
+            "confidence_level": round(min(0.9, confidence_level), 2),
+            "confidence": {
+                "analysis_confidence": 0.5 if self.analysis_done else 0.3,
+                "cost_confidence": 0.5 if self.investigation_done else 0.3,
+            },
             "progress": {
                 "analysis_done": self.analysis_done,
                 "investigation_done": self.investigation_done,
