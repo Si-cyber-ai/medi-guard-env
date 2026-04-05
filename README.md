@@ -9,6 +9,7 @@ This repository currently contains a production-oriented skeleton with typed mod
 - env/environment.py
 - env/models.py
 - env/tasks.py
+- env/grader.py
 - .gitignore
 
 ## What Is Implemented
@@ -118,11 +119,81 @@ Implemented in env/environment.py.
 2. `review_requested`
 6. Observation builder now returns only progressively revealed view, not full case payload.
 
+### Step 4.1: Robust Transition Safeguards And Observation Cleanup
+
+Implemented in env/environment.py.
+
+1. Removed duplicate observation keying by keeping `progress` and dropping redundant `flags` from observations.
+2. Added early termination guard in `step` so actions after terminal decisions return `already_terminated`.
+3. Added `decision_taken` state flag for future reward/grader workflows.
+4. Corrected progressive note reveal logic to reveal incrementally (`already + count`) rather than jump behavior.
+5. Added `info_level` block in observation for clearer reasoning context (`analysis`, `cost`, `guidelines`, `review`).
+
+### Step 5: Dense Reward Logic
+
+Implemented in env/environment.py.
+
+1. Added modular helper `_calculate_reward(action)` and integrated it into `step`.
+2. Added first-time progress rewards:
+1. `analyze_case` +0.1
+2. `investigate_cost` +0.2
+3. `check_guidelines` +0.2
+4. `request_review` +0.1
+3. Added penalties:
+1. repeated action: -0.05
+2. investigate before analyze: -0.1
+3. escalate without prior investigation: -0.3
+4. episode ends with real issue undetected: -0.5
+5. max steps reached without decision: -0.2
+4. Added final-decision reward rules from hidden truth:
+1. `flag_issue`: +0.6 if issue exists else -0.4
+2. `approve_case`: +0.6 if no issue else -0.7
+3. `escalate_case`: +1.0 if escalation needed else -0.8
+5. Added reward clamping to `[-1.0, 1.0]`.
+
+### Step 5.1: Reward Quality Polish
+
+Implemented in env/environment.py.
+
+1. Fixed missed-issue penalty trigger to apply only when a decision is actually taken.
+2. Improved escalation reward nuance:
+1. +1.0 when escalation is truly needed
+2. -0.4 when escalation is overreaction but issues still exist
+3. -0.8 when escalation is fully incorrect
+3. Added good-sequence bonus (+0.2) for final decisions after both analysis and cost investigation.
+4. Added premature-decision penalty (-0.3) for final decisions taken without prior analysis.
+
+### Step 6: Deterministic Episode Grader
+
+Implemented in env/grader.py.
+
+1. Added pure function `grade_episode(action_history, hidden_truth) -> float`.
+2. Added helper `count_repetitions(action_history)` for trajectory repetition analysis.
+3. Scoring components implemented exactly as rubric-driven parts:
+1. final decision correctness (up to +0.5)
+2. reasoning quality from full trajectory (up to +0.3)
+3. bad behavior penalties (up to -0.3)
+4. missed issue penalty
+5. over-reaction penalty
+4. Deterministic behavior guarantees:
+1. no randomness
+2. no environment dependency
+3. score normalized to [0.0, 1.0]
+
+### Step 6.1: Grader Final Polish
+
+Implemented in env/grader.py.
+
+1. Added sequence-quality bonus (+0.05) when `analyze_case` occurs before `investigate_cost`.
+2. Added premature-decision penalty (-0.2) for instant final decisions with no trajectory depth.
+3. Added efficiency bonus (+0.05) for concise episodes (`len(action_history) <= 4`).
+4. Updated normalization comment to explicitly state OpenEnv clamp intent.
+
 ## What Is Intentionally Not Implemented Yet
 
 1. Task generation logic beyond the initial fixed benchmark set
 2. Reward strategy/business scoring logic
-3. Grader/evaluation pipeline
+3. Grader integration into training/evaluation loop
 4. External service integrations
 
 ## Push Readiness
@@ -156,6 +227,30 @@ This section is the running memory of prompt-driven changes.
 2. Added partial observability and action-driven reveal mechanics
 3. Added state flags for guideline checks and review requests
 4. Updated README to capture Step 4 behavior and information flow
+7. Prompt Update 7
+1. Removed redundant observation flags and retained `progress`
+2. Added strict post-termination protection in `step`
+3. Added `decision_taken` tracking for decision lifecycle
+4. Fixed incremental note reveal behavior
+5. Added `info_level` metadata to observation
+8. Prompt Update 8
+1. Added `_calculate_reward(action)` helper and wired reward computation into `step`
+2. Implemented dense progress rewards, sequence penalties, and final-decision rewards
+3. Added missed-issue, over-reaction, and step-limit penalties
+4. Added reward clamping for stable bounded output
+9. Prompt Update 9
+1. Refined missed-issue penalty condition to decision-based triggering only
+2. Added nuanced escalation scoring for partial-vs-total errors
+3. Added good-sequence bonus for disciplined decision paths
+4. Added premature final-decision penalty when analysis is skipped
+10. Prompt Update 10
+1. Added env/grader.py with deterministic trajectory grading function
+2. Implemented rubric-based scoring for correctness, reasoning quality, and penalties
+3. Added normalization and repetition helper for stable deterministic scoring
+11. Prompt Update 11
+1. Added ordered-sequence bonus for analyze-before-investigate reasoning
+2. Added premature-final-decision penalty and efficiency bonus
+3. Updated clamp comment to explicitly reference OpenEnv score range
 
 ## Maintenance Rule
 

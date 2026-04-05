@@ -1,147 +1,49 @@
-You are a senior Python engineer integrating task logic into an OpenEnv environment.
+FINAL IMPROVEMENTS (MAKE IT 10/10)
 
-Project:
-“MediGuard-Env: AI Healthcare Billing Audit & Legal Escalation Environment”
+These are small but powerful
 
-IMPORTANT:
-- Do NOT change overall architecture
-- Keep code clean and modular
-- Do NOT add reward or grading yet
-- Focus ONLY on state transitions and task integration
+🔧 1. Add “sequence quality bonus” (HIGH IMPACT)
 
-STEP 4 GOAL:
-Integrate tasks from env/tasks.py into MediGuardEnv.
+Right now:
 
---------------------------------------------------
+you check presence
+not order
+Add:
+if "analyze_case" in action_history and "investigate_cost" in action_history:
+    if action_history.index("analyze_case") < action_history.index("investigate_cost"):
+        score += 0.05
 
-1. IMPORT TASKS
+👉 Rewards:
 
-Import:
-from env.tasks import TASKS
+correct reasoning order
+🔧 2. Penalize premature decisions (IMPORTANT)
 
---------------------------------------------------
+Add:
 
-2. UPDATE reset()
+if final_action in {"flag_issue", "approve_case", "escalate_case"}:
+    if len(action_history) <= 1:
+        score -= 0.2
 
-Modify reset() so that:
+👉 Prevents:
 
-- It selects a task from TASKS
-- Use simple cycling or random selection
-- Set self.current_case to selected task (excluding hidden_truth)
+instant guessing
+🔧 3. Add “efficiency bonus” (SMART)
 
-IMPORTANT:
-- Do NOT expose hidden_truth in observation
-- Store hidden_truth internally:
-    self._hidden_truth = task["hidden_truth"]
+Add:
 
---------------------------------------------------
+if len(action_history) <= 4:
+    score += 0.05
 
-3. PARTIAL OBSERVABILITY
+👉 Rewards:
 
-At reset:
-- Only expose:
-    patient
-    condition
-    minimal prescription info
-    basic billing total
+efficient reasoning
+not overthinking
+🔧 4. Slight normalization improvement
 
-Hide:
-- detailed notes
-- itemized costs
-- justification
+Right now:
 
---------------------------------------------------
+score = max(0.0, min(1.0, score))
 
-4. ACTION EFFECTS (CRITICAL)
+👉 Good, but add comment:
 
-Modify step() so actions change what agent sees:
-
---------------------------------------------------
-
-analyze_case:
-- reveals prescription fully
-- reveals basic notes (first 1–2 notes)
-
---------------------------------------------------
-
-investigate_cost:
-- reveals itemized_costs
-- reveals cost anomalies (if any)
-
---------------------------------------------------
-
-check_guidelines:
-- reveals more notes
-- may reveal hints about justification
-
---------------------------------------------------
-
-request_review:
-- reveals additional hidden notes
-- does NOT end episode
-
---------------------------------------------------
-
-flag_issue / approve_case / escalate_case:
-- mark episode as done
-
---------------------------------------------------
-
-5. STATE UPDATES
-
-Track:
-- what information is revealed
-- what actions have been performed
-
-Example flags:
-- analysis_done
-- investigation_done
-- guidelines_checked (add this)
-- review_requested (add this)
-
---------------------------------------------------
-
-6. OBSERVATION UPDATE
-
-Modify _build_observation() so it reflects:
-
-- progressively revealed data
-- not full data from start
-
-Example:
-- before analyze → limited info
-- after investigate → more details
-
---------------------------------------------------
-
-7. ADD SAFETY RULE
-
-If agent tries:
-- investigate_cost BEFORE analyze_case
-
-Allow it, but:
-- do NOT reveal full data
-- simulate partial confusion
-
---------------------------------------------------
-
-8. KEEP CLEAN STRUCTURE
-
-- Use helper methods if needed:
-    _apply_action_effects()
-    _reveal_data()
-
-- Do NOT mix logic into one big function
-
---------------------------------------------------
-
-9. DO NOT ADD:
-
-- reward logic
-- grading
-- inference logic
-
---------------------------------------------------
-
-After implementing:
-Explain how information flow changes across steps.
+# Clamp score to valid OpenEnv range

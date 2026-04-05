@@ -44,6 +44,7 @@ class MediGuardEnv:
         self.investigation_done = False
         self.guidelines_checked = False
         self.review_requested = False
+        self.decision_taken = False
         self.action_history: List[str] = []
         self._reveal_state: Dict[str, Any] = {}
 
@@ -59,6 +60,7 @@ class MediGuardEnv:
         self.investigation_done = False
         self.guidelines_checked = False
         self.review_requested = False
+        self.decision_taken = False
         self.action_history = []
         self._reveal_state = {
             "prescription_fully_revealed": False,
@@ -80,6 +82,13 @@ class MediGuardEnv:
         - Records action in history.
         - Returns placeholder reward and info values.
         """
+        # Once a terminal decision is taken, keep episode closed to further actions.
+        if self.step_count > 0 and self.action_history and self.action_history[-1] in self.FINAL_ACTIONS:
+            return self._build_observation(), 0.0, True, {"done_reason": "already_terminated"}
+
+        if self.step_count >= self.max_steps:
+            return self._build_observation(), 0.0, True, {"done_reason": "already_terminated"}
+
         self._validate_action(action)
 
         self.step_count += 1
@@ -87,9 +96,12 @@ class MediGuardEnv:
 
         self._apply_action_effects(action)
 
+        if action in self.FINAL_ACTIONS:
+            self.decision_taken = True
+
         done = action in self.FINAL_ACTIONS or self.step_count >= self.max_steps
         observation = self._build_observation()
-        reward = 0.0
+        reward = self._calculate_reward(action)
 
         # Include reason metadata to make episode termination debuggable.
         if action in self.FINAL_ACTIONS:
@@ -103,6 +115,74 @@ class MediGuardEnv:
 
         return observation, reward, done, info
 
+    def _calculate_reward(self, action: str) -> float:
+        """Calculate dense reward from progress, sequence quality, and final decisions."""
+        reward = 0.0
+
+        # Reward meaningful exploration actions only on first occurrence.
+        progress_rewards = {
+            "analyze_case": 0.1,
+            "investigate_cost": 0.2,
+            "check_guidelines": 0.2,
+            "request_review": 0.1,
+        }
+        if action in progress_rewards and self.action_history.count(action) == 1:
+            reward += progress_rewards[action]
+
+        # Penalize repeated actions to discourage loops.
+        if self.action_history.count(action) > 1:
+            reward -= 0.05
+
+        # Penalize investigating before analysis due to weak context setup.
+        if action == "investigate_cost" and not self.analysis_done:
+            reward -= 0.1
+
+        over_treatment = bool(self._hidden_truth.get("is_over_treatment", False))
+        overpriced = bool(self._hidden_truth.get("is_overpriced", False))
+        escalation_needed = bool(self._hidden_truth.get("escalation_needed", False))
+        issue_exists = over_treatment or overpriced
+
+        # Decision rewards aligned to hidden ground truth.
+        if action == "flag_issue":
+            reward += 0.6 if issue_exists else -0.4
+
+        if action == "approve_case":
+            reward += 0.6 if not issue_exists else -0.7
+
+        if action == "escalate_case":
+            if escalation_needed:
+                reward += 1.0
+            elif issue_exists:
+                reward -= 0.4
+            else:
+                reward -= 0.8
+
+        # Reward complete reasoning path before final decisions.
+        if action in self.FINAL_ACTIONS and self.analysis_done and self.investigation_done:
+            reward += 0.2
+
+        # Penalize blind terminal decisions without core case analysis.
+        if action in self.FINAL_ACTIONS and not self.analysis_done:
+            reward -= 0.3
+
+        # Penalize escalating without prior investigation.
+        if action == "escalate_case" and not self.investigation_done:
+            reward -= 0.3
+
+        # Penalize ending without identifying existing issues.
+        if self.decision_taken and issue_exists:
+            detected_issue = any(a in {"flag_issue", "escalate_case"} for a in self.action_history)
+            if not detected_issue:
+                reward -= 0.5
+
+        # Penalize running out of steps without a terminal decision.
+        if self.step_count >= self.max_steps and not self.decision_taken:
+            reward -= 0.2
+
+        # Keep reward bounded for stable optimization.
+        reward = max(-1.0, min(1.0, reward))
+        return float(reward)
+
     def state(self) -> Dict[str, Any]:
         """Return a snapshot of the current internal state."""
         return {
@@ -115,6 +195,7 @@ class MediGuardEnv:
                 "investigation_done": self.investigation_done,
                 "guidelines_checked": self.guidelines_checked,
                 "review_requested": self.review_requested,
+                "decision_taken": self.decision_taken,
             },
             "reveal_state": dict(self._reveal_state),
             "action_history": list(self.action_history),
@@ -190,7 +271,7 @@ class MediGuardEnv:
             return
 
         already = self._reveal_state["notes_revealed_count"]
-        target = min(len(all_notes), max(already, count))
+        target = min(len(all_notes), already + count)
         if target > already:
             self._visible_case["notes"] = all_notes[:target]
             self._reveal_state["notes_revealed_count"] = target
@@ -279,12 +360,13 @@ class MediGuardEnv:
                 "investigation_done": self.investigation_done,
                 "guidelines_checked": self.guidelines_checked,
                 "review_requested": self.review_requested,
+                "decision_taken": self.decision_taken,
             },
-            "flags": {
-                "analysis_done": self.analysis_done,
-                "investigation_done": self.investigation_done,
-                "guidelines_checked": self.guidelines_checked,
-                "review_requested": self.review_requested,
+            "info_level": {
+                "analysis": self.analysis_done,
+                "cost": self.investigation_done,
+                "guidelines": self.guidelines_checked,
+                "review": self.review_requested,
             },
             "last_action": self.action_history[-1] if self.action_history else None,
         }
