@@ -1,79 +1,147 @@
-⚠️ CRITICAL FIXES (MUST DO)
+You are a senior Python engineer integrating task logic into an OpenEnv environment.
 
-These are small changes but HIGH IMPACT
+Project:
+“MediGuard-Env: AI Healthcare Billing Audit & Legal Escalation Environment”
 
-🔧 1. FINAL_ACTIONS is WRONG (IMPORTANT)
-Current:
-FINAL_ACTIONS = {"approve_case", "escalate_case"}
-❗ Problem:
+IMPORTANT:
+- Do NOT change overall architecture
+- Keep code clean and modular
+- Do NOT add reward or grading yet
+- Focus ONLY on state transitions and task integration
 
-You are missing:
+STEP 4 GOAL:
+Integrate tasks from env/tasks.py into MediGuardEnv.
 
-"flag_issue"
-✅ Fix:
-FINAL_ACTIONS = {"approve_case", "escalate_case", "flag_issue"}
-💣 Why this matters:
-flagging is a final decision
-without this:
-agent can keep acting after flag
-unrealistic environment
+--------------------------------------------------
 
-👉 Judges WILL notice this
+1. IMPORT TASKS
 
-🔧 2. Observation is missing ACTION SPACE
-Current observation:
-{
-  "current_case": ...,
-  "step_count": ...,
-  ...
-}
-✅ Add:
-"available_actions": self.ACTION_SPACE
-💡 Why:
-agent needs to know what it can do
-improves inference quality
-🔧 3. Add “done reason” in info (PRO FEATURE)
-Current:
-info = {}
-✅ Improve:
-if action in self.FINAL_ACTIONS:
-    reason = "final_action_taken"
-elif self.step_count >= self.max_steps:
-    reason = "max_steps_reached"
-else:
-    reason = None
+Import:
+from env.tasks import TASKS
 
-info = {"done_reason": reason}
-💡 Why:
-debugging
-reproducibility
-judges LOVE this
-🔧 4. Small improvement in return type
-Current:
--> Tuple[Dict[str, Any], int, bool, Dict[str, Any]]
-⚠️ Issue:
+--------------------------------------------------
 
-Reward should be:
+2. UPDATE reset()
 
-float
-✅ Fix:
--> Tuple[Dict[str, Any], float, bool, Dict[str, Any]]
-🔧 5. Minor but powerful: expose “progress”
+Modify reset() so that:
 
-Add inside observation:
+- It selects a task from TASKS
+- Use simple cycling or random selection
+- Set self.current_case to selected task (excluding hidden_truth)
 
-"progress": {
-    "analysis_done": self.analysis_done,
-    "investigation_done": self.investigation_done
-}
+IMPORTANT:
+- Do NOT expose hidden_truth in observation
+- Store hidden_truth internally:
+    self._hidden_truth = task["hidden_truth"]
 
-👉 This helps agent reasoning later
+--------------------------------------------------
 
-🧠 OPTIONAL (HIGH-END IMPROVEMENT)
+3. PARTIAL OBSERVABILITY
 
-Not required now, but good:
+At reset:
+- Only expose:
+    patient
+    condition
+    minimal prescription info
+    basic billing total
 
-Add:
-"remaining_steps": self.max_steps - self.step_count
+Hide:
+- detailed notes
+- itemized costs
+- justification
 
-👉 This enables smarter agents
+--------------------------------------------------
+
+4. ACTION EFFECTS (CRITICAL)
+
+Modify step() so actions change what agent sees:
+
+--------------------------------------------------
+
+analyze_case:
+- reveals prescription fully
+- reveals basic notes (first 1–2 notes)
+
+--------------------------------------------------
+
+investigate_cost:
+- reveals itemized_costs
+- reveals cost anomalies (if any)
+
+--------------------------------------------------
+
+check_guidelines:
+- reveals more notes
+- may reveal hints about justification
+
+--------------------------------------------------
+
+request_review:
+- reveals additional hidden notes
+- does NOT end episode
+
+--------------------------------------------------
+
+flag_issue / approve_case / escalate_case:
+- mark episode as done
+
+--------------------------------------------------
+
+5. STATE UPDATES
+
+Track:
+- what information is revealed
+- what actions have been performed
+
+Example flags:
+- analysis_done
+- investigation_done
+- guidelines_checked (add this)
+- review_requested (add this)
+
+--------------------------------------------------
+
+6. OBSERVATION UPDATE
+
+Modify _build_observation() so it reflects:
+
+- progressively revealed data
+- not full data from start
+
+Example:
+- before analyze → limited info
+- after investigate → more details
+
+--------------------------------------------------
+
+7. ADD SAFETY RULE
+
+If agent tries:
+- investigate_cost BEFORE analyze_case
+
+Allow it, but:
+- do NOT reveal full data
+- simulate partial confusion
+
+--------------------------------------------------
+
+8. KEEP CLEAN STRUCTURE
+
+- Use helper methods if needed:
+    _apply_action_effects()
+    _reveal_data()
+
+- Do NOT mix logic into one big function
+
+--------------------------------------------------
+
+9. DO NOT ADD:
+
+- reward logic
+- grading
+- inference logic
+
+--------------------------------------------------
+
+After implementing:
+Explain how information flow changes across steps.
