@@ -1,3 +1,13 @@
+---
+title: "MediGuard Env"
+emoji: "🏥"
+colorFrom: "blue"
+colorTo: "green"
+sdk: "docker"
+app_file: "api.py"
+pinned: false
+---
+
 # MediGuard-Env
 
 MediGuard-Env is an OpenEnv-compatible AI environment for healthcare billing audit and legal escalation decisions. It simulates realistic claim-review uncertainty where agents must inspect evidence, detect anomalies, and choose safe outcomes (`approve_case`, `flag_issue`, `escalate_case`) under partial observability.
