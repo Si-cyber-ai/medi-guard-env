@@ -43,13 +43,17 @@ TASK_1: Dict[str, Any] = {
         "Patient reported mild wheeze at night; responded to one bronchodilator dose.",
         "No chest pain, no focal neurological deficit, no sepsis indicators.",
         "Night-shift note mentions MRI ordered to 'rule out hidden pulmonary complications'.",
+        "Senior consultant recommended ICU monitoring due to rare complication risk, though no clinical signs support it.",
+        "Day team note states patient is stable and suitable for outpatient care.",
+        "Billing note indicates ICU was pre-approved under 'respiratory risk protocol'.",
     ],
     "hidden_truth": {
         "is_over_treatment": True,
         "is_overpriced": True,
         "escalation_needed": False,
-        "uncertainty_level": "low",
+        "uncertainty_level": "low_but_misleading",
         "expected_best_action": "flag_issue",
+        "acceptable_alternative": "investigate_cost",
         "justification": (
             "Most spending came from ICU and MRI without documented instability. "
             "Bronchodilator use is a valid distractor for mild asthma symptoms, but does not "
@@ -95,13 +99,18 @@ TASK_2: Dict[str, Any] = {
         "One consultant note supports hyperbaric therapy; another says evidence is borderline.",
         "Supply invoice uses premium dressing SKU; contract pricing appendix not attached.",
         "Discharge summary was signed before final culture sensitivity report posted.",
+        "Senior endocrinologist strongly recommended hyperbaric therapy citing 'preventive limb salvage strategy'.",
+        "Independent wound care specialist note questions benefit of hyperbaric therapy given current ulcer severity.",
+        "Billing summary shows bundled pricing discount applied, but individual line items appear inflated.",
+        "Hospital quality audit note states hyperbaric usage is within acceptable internal guidelines.",
     ],
     "hidden_truth": {
         "is_over_treatment": False,
         "is_overpriced": True,
         "escalation_needed": False,
-        "uncertainty_level": "medium",
+        "uncertainty_level": "medium_conflicting",
         "expected_best_action": "investigate_cost",
+        "acceptable_alternative": "request_review",
         "justification": (
             "Core treatment plan is clinically plausible for an infected diabetic foot ulcer, "
             "but pricing and documentation gaps warrant investigation before judgment. Costs are "
@@ -147,13 +156,19 @@ TASK_3: Dict[str, Any] = {
         "Triage nurse note describes pain score drop after antiemetic and hydration.",
         "Genetics clinic letter confirming vascular risk was scanned but indexed under external records.",
         "Payer pre-authorization timestamp appears after imaging start due to emergency override workflow.",
+        "Initial billing review flagged this case as 'potential overuse of neuro-imaging'.",
+        "Emergency physician note mentions symptoms resolved quickly, suggesting low immediate risk.",
+        "Hematology consult notes increased bleeding risk due to anticoagulation and connective tissue disorder.",
+        "Automated billing system flagged ICU stay as exceeding typical duration for similar presentations.",
+        "Hospital quality audit note states imaging and ICU usage are within acceptable emergency protocols for high-risk vascular cases.",
     ],
     "hidden_truth": {
         "is_over_treatment": False,
         "is_overpriced": False,
         "escalation_needed": False,
-        "uncertainty_level": "high",
+        "uncertainty_level": "high_misleading",
         "expected_best_action": "investigate_cost",
+        "acceptable_alternative": "request_review",
         "justification": (
             "High-cost diagnostics and monitored care are justified by extreme vascular risk profile, "
             "family history, anticoagulation status, and red-flag symptom pattern. Superficially suspicious "
