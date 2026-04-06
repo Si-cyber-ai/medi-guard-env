@@ -11,6 +11,17 @@ MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
 API_KEY = os.getenv("HF_TOKEN")
 
 
+def warmup_llm(client):
+    try:
+        client.chat.completions.create(
+            model=MODEL_NAME,
+            messages=[{"role": "user", "content": "ping"}],
+            max_tokens=1,
+        )
+    except:
+        pass
+
+
 def log_start(task, env, model):
     print(f"[START] task={task} env={env} model={model}", flush=True)
 
@@ -95,6 +106,7 @@ def choose_action(observation):
 
 def main():
     client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
+    warmup_llm(client)
 
     env = MediGuardEnv()
 
@@ -125,6 +137,7 @@ def main():
 
         # FINAL SCORE USING GRADER
         score = grade_episode(action_history, env._hidden_truth)
+        score = max(0.0, min(score, 1.0))
 
         success = score > 0.5
 
