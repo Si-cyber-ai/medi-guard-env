@@ -1,0 +1,45 @@
+# VCS
+.git/
+.gitignore
+
+# Python caches and bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# Build/test artifacts
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+.pyre/
+
+# Runtime/log artifacts
+*.log
+logs/
+tmp/
+temp/
+.cache/
+
+# IDE/OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Local secrets/env
+.env
+.env.*
+
+# Local override files
+docker-compose.override.yml

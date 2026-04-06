@@ -1,0 +1,14 @@
+name: mediguard-env
+version: "1.0.0"
+
+description: >
+  OpenEnv-compatible environment for healthcare billing audit and escalation decisions.
+  Agents must detect over-treatment, overpricing, and high-risk cases under uncertainty.
+
+entry_point: api:app
+
+tags:
+  - openenv
+  - healthcare
+  - decision-making
+  - reinforcement-learning

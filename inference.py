@@ -29,19 +29,68 @@ def log_end(success, steps, score, rewards):
 
 
 def choose_action(observation):
-    progress = observation["progress"]
+    progress = observation.get("progress", {})
 
-    if not progress["analysis_done"]:
+    if not progress.get("analysis_done", False):
         return "analyze_case"
 
-    if not progress["investigation_done"]:
+    if not progress.get("investigation_done", False):
         return "investigate_cost"
 
-    if not progress["guidelines_checked"]:
+    if not progress.get("guidelines_checked", False):
         return "check_guidelines"
 
-    # simple heuristic
-    return "flag_issue"
+    case = observation.get("current_case", {}) or {}
+    notes = case.get("notes", []) or []
+    anomalies = case.get("cost_anomalies", []) or []
+    hints = case.get("guideline_hints", []) or []
+    total_cost = (case.get("billing", {}) or {}).get("total_cost", 0.0)
+    confidence = observation.get("confidence_level", 0.5)
+
+    combined_text = " ".join(str(x).lower() for x in [*notes, *hints])
+    risk_keywords = {
+        "genetic",
+        "aneurysm",
+        "vascular",
+        "severe",
+        "confusion",
+        "anticoagulation",
+    }
+    high_risk = any(keyword in combined_text for keyword in risk_keywords)
+    has_anomaly = len(anomalies) > 0
+
+    # Lightweight cost context signal for ambiguity handling.
+    cost_pressure = isinstance(total_cost, (int, float)) and total_cost >= 22000
+    unclear_case = (not has_anomaly and not high_risk) or (has_anomaly and high_risk and not hints)
+
+    if has_anomaly and not high_risk:
+        if confidence < 0.7:
+            return "request_review"
+        return "flag_issue"
+
+    if has_anomaly and high_risk:
+        if not progress.get("review_requested", False):
+            return "request_review"
+
+        # AFTER REVIEW -> must decide (no loop)
+        if confidence > 0.8:
+            return "approve_case"
+        return "flag_issue"
+
+    if high_risk and not has_anomaly:
+        return "approve_case"
+
+    if confidence < 0.6 and not progress.get("review_requested", False):
+        return "request_review"
+
+    if unclear_case or cost_pressure:
+        if not progress.get("review_requested", False):
+            return "request_review"
+        return "approve_case"
+
+    if has_anomaly:
+        return "flag_issue"
+    return "approve_case"
 
 
 def main():
