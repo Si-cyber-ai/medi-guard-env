@@ -1,0 +1,12 @@
+[project]
+name = "medi-guard-env"
+version = "0.1.0"
+description = "Healthcare billing audit environment for AI agents"
+authors = [
+    { name = "Sidharth P Nair" }
+]
+dependencies = []
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
