@@ -1,0 +1,1 @@
+"""MediGuard environment package."""
