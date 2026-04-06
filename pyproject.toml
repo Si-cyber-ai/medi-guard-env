@@ -5,7 +5,15 @@ description = "Healthcare billing audit environment for AI agents"
 authors = [
     { name = "Sidharth P Nair" }
 ]
-dependencies = []
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "pydantic",
+    "openenv-core>=0.2.0"
+]
+
+[project.scripts]
+server = "api:app"
 
 [build-system]
 requires = ["setuptools"]
