@@ -19,6 +19,7 @@ TASK_1: Dict[str, Any] = {
             "No chronic cardiopulmonary disease",
             "No prior hospitalization in last 3 years",
             "Mild exercise-induced asthma managed with rescue inhaler",
+            "No history of immunosuppression, structural lung disease, or recurrent severe infections",
         ],
     },
     "prescription": [
@@ -46,6 +47,8 @@ TASK_1: Dict[str, Any] = {
         "Senior consultant recommended ICU monitoring due to rare complication risk, though no clinical signs support it.",
         "Day team note states patient is stable and suitable for outpatient care.",
         "Billing note indicates ICU was pre-approved under 'respiratory risk protocol'.",
+        "Automated utilization engine auto-approved high-acuity bed placement after protocol trigger, but no trigger thresholds are documented in charted vitals.",
+        "Respiratory protocol memo states advanced imaging is reasonable in severe deterioration, although no objective deterioration is recorded for this visit.",
     ],
     "hidden_truth": {
         "is_over_treatment": True,
@@ -75,6 +78,7 @@ TASK_2: Dict[str, Any] = {
             "Stage 2 chronic kidney disease",
             "Hypertension controlled on dual therapy",
             "Prior outpatient wound care non-adherence noted",
+            "No prior vascular surgery, bypass, or documented critical limb ischemia admissions",
         ],
     },
     "prescription": [
@@ -103,6 +107,8 @@ TASK_2: Dict[str, Any] = {
         "Independent wound care specialist note questions benefit of hyperbaric therapy given current ulcer severity.",
         "Billing summary shows bundled pricing discount applied, but individual line items appear inflated.",
         "Hospital quality audit note states hyperbaric usage is within acceptable internal guidelines.",
+        "Auto-authorization log marks hyperbaric sessions as guideline-concordant, but severity criteria and perfusion thresholds are not attached to the approval record.",
+        "Nursing flow-sheet describes patient hemodynamically stable with improving local erythema while inpatient intensity charges remain at full acute-care level.",
     ],
     "hidden_truth": {
         "is_over_treatment": False,
@@ -132,6 +138,7 @@ TASK_3: Dict[str, Any] = {
             "First-degree relative died from ruptured intracranial aneurysm at age 49",
             "Prior emergency visit 8 months ago for thunderclap headache",
             "Anticoagulation use after recent venous thromboembolism",
+            "No prior documented intracranial hemorrhage in available records",
         ],
     },
     "prescription": [
@@ -161,6 +168,9 @@ TASK_3: Dict[str, Any] = {
         "Hematology consult notes increased bleeding risk due to anticoagulation and connective tissue disorder.",
         "Automated billing system flagged ICU stay as exceeding typical duration for similar presentations.",
         "Hospital quality audit note states imaging and ICU usage are within acceptable emergency protocols for high-risk vascular cases.",
+        "Utilization reviewer note says duplicate vascular imaging may be avoidable in low-risk headaches, but this note does not address the documented inherited aneurysm risk context.",
+        "Neurosurgery addendum supports aggressive early imaging due to catastrophic-risk profile, while a separate coding review labels the same pathway 'resource-intensive but policy-permitted'.",
+        "ICU billing justification cites high-intensity neurologic monitoring protocol, yet bedside notes intermittently describe clinically calm intervals without active intervention.",
     ],
     "hidden_truth": {
         "is_over_treatment": False,
