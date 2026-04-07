@@ -89,6 +89,10 @@ class MediGuardEnv:
         - Records action in history.
         - Returns placeholder reward and info values.
         """
+        # Safety guard: ensure environment is initialized
+        if not getattr(self, "current_case", None):
+            self.reset()
+
         # Once a terminal decision is taken, keep episode closed to further actions.
         if self.step_count > 0 and self.action_history and self.action_history[-1] in self.FINAL_ACTIONS:
             return self._build_observation(), 0.0, True, {"done_reason": "already_terminated"}
