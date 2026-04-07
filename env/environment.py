@@ -75,6 +75,7 @@ class MediGuardEnv:
             "cost_confusion_shown": False,
             "guideline_hint_revealed": False,
             "review_notes_revealed": False,
+            "contradiction_revealed": False,
         }
         return self._build_observation()
 
@@ -139,9 +140,17 @@ class MediGuardEnv:
         if self.action_history.count(action) > 1:
             reward -= 0.05
 
+        # Penalize over-review loops (requesting review more than once).
+        if action == "request_review" and self.review_requested:
+            reward -= 0.05
+
         # Penalize investigating before analysis due to weak context setup.
         if action == "investigate_cost" and not self.analysis_done:
             reward -= 0.1
+
+        # Penalize late investigation attempts (after step 3).
+        if action == "investigate_cost" and self.step_count > 3:
+            reward -= 0.05
 
         over_treatment = bool(self._hidden_truth.get("is_over_treatment", False))
         overpriced = bool(self._hidden_truth.get("is_overpriced", False))
@@ -167,6 +176,10 @@ class MediGuardEnv:
         if action in self.FINAL_ACTIONS and self.analysis_done and self.investigation_done:
             reward += 0.2
 
+        # Reward cautious reasoning (hesitation before final decision).
+        if action == "request_review" and self.analysis_done and self.investigation_done:
+            reward += 0.05
+
         # Penalize blind terminal decisions without core case analysis.
         if action in self.FINAL_ACTIONS and not self.analysis_done:
             reward -= 0.3
@@ -174,6 +187,18 @@ class MediGuardEnv:
         # Penalize escalating without prior investigation.
         if action == "escalate_case" and not self.investigation_done:
             reward -= 0.3
+
+        # Penalize premature final decisions without reviewing guidelines.
+        if action in ["flag_issue", "approve_case"] and not self.guidelines_checked:
+            reward -= 0.1
+
+        # Extra nudge: strengthen penalty for skipping guidelines entirely.
+        if action in self.FINAL_ACTIONS and not self.guidelines_checked:
+            reward -= 0.05
+
+        # Penalize confident decision without enough evidence.
+        if action in self.FINAL_ACTIONS and not (self.analysis_done and self.investigation_done):
+            reward -= 0.15
 
         # Penalize ending without identifying existing issues.
         if self.decision_taken and issue_exists:
@@ -185,8 +210,7 @@ class MediGuardEnv:
         if self.step_count >= self.max_steps and not self.decision_taken:
             reward -= 0.2
 
-        # Keep reward bounded for stable optimization.
-        reward += random.uniform(-0.02, 0.02)
+        # Keep reward bounded for stable optimization (deterministic for reproducibility).
         reward = max(-1.0, min(1.0, reward))
         return float(reward)
 
@@ -251,6 +275,7 @@ class MediGuardEnv:
             self.guidelines_checked = True
             self._reveal_notes(count=4)
             self._reveal_guideline_hint()
+            self._reveal_contradiction_note()
             return
 
         if action == "request_review":
@@ -325,11 +350,32 @@ class MediGuardEnv:
         if self._reveal_state["review_notes_revealed"]:
             return
 
-        review_note = "Peer review requested additional documentation consistency checks."
+        review_note = {
+            "source": "peer_review",
+            "text": "Peer review requested additional documentation consistency checks.",
+        }
         notes = list(self._visible_case.get("notes", []))
         notes.append(review_note)
         self._visible_case["notes"] = notes
         self._reveal_state["review_notes_revealed"] = True
+
+    def _reveal_contradiction_note(self) -> None:
+        """Reveal a late-stage contradictory insight to challenge agent reasoning."""
+        if self._reveal_state.get("contradiction_revealed"):
+            return
+
+        contradiction_note = {
+            "source": "late_audit",
+            "text": (
+                "Late audit note: initial clinical stability assessment may have underestimated "
+                "risk due to incomplete history at triage."
+            ),
+        }
+        notes = list(self._visible_case.get("notes", []))
+        insert_pos = max(1, len(notes) // 2)
+        notes.insert(insert_pos, contradiction_note)
+        self._visible_case["notes"] = notes
+        self._reveal_state["contradiction_revealed"] = True
 
     def _validate_action(self, action: str) -> None:
         """Raise a clear error when an invalid action is provided."""
