@@ -85,19 +85,13 @@ Answer with ONLY the action name.
 
 
 def ensure_real_llm_call(client):
-    """Guarantee at least one successful LLM call through proxy."""
-    try:
-        response = client.chat.completions.create(
-            model=MODEL_NAME,
-            messages=[{"role": "user", "content": "Say OK"}],
-            max_tokens=2,
-        )
-        # Ensure response is valid (not silent fail)
-        if not response or not response.choices:
-            raise ValueError("Empty LLM response")
-    except Exception as e:
-        print(f"[ERROR] LLM proxy call failed: {e}", flush=True)
-        raise e
+    response = client.chat.completions.create(
+        model=MODEL_NAME,
+        messages=[{"role": "user", "content": "Say OK"}],
+        max_tokens=2,
+    )
+    if not response or not response.choices:
+        raise RuntimeError("LLM proxy call failed")
 
 
 def choose_action(observation):
@@ -158,8 +152,9 @@ Return ONLY the action name.
         ]:
             return action
 
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[ERROR] LLM call failed: {e}", flush=True)
+        raise
 
     # fallback (safe but NOT perfect)
     return "request_review"
@@ -169,7 +164,9 @@ def main():
     client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
     global _OPENAI_CLIENT
     _OPENAI_CLIENT = client
-    print(f"[DEBUG] Using API_BASE_URL={API_BASE_URL}", flush=True)
+
+    # Ensure at least one real proxy call before any environment API request.
+    ensure_real_llm_call(client)
 
     for task_idx in range(len(TASKS)):
         hidden_truth = TASKS[task_idx]["hidden_truth"]
@@ -186,8 +183,6 @@ def main():
             reset_response.raise_for_status()
             observation = reset_response.json()["observation"]
             done = False
-
-            ensure_real_llm_call(client)
 
             while not done:
                 step_count += 1
