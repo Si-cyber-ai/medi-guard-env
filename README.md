@@ -14,7 +14,7 @@ MediGuard-Env is an OpenEnv-compatible AI environment for healthcare billing aud
 
 ## Real-World Motivation
 
-Healthcare billing review requires balancing patient safety, fraud detection, and escalation risk. Over-aggressive flagging can delay care, while under-detection can allow over-treatment or overpricing. MediGuard-Env models this tradeoff with staged evidence reveal, noisy rewards, and trajectory-based grading.
+Healthcare billing review requires balancing patient safety, fraud detection, and escalation risk. Over-aggressive flagging can delay care, while under-detection can allow over-treatment or overpricing. MediGuard-Env models this tradeoff with staged evidence reveal, bounded stochasticity to simulate real-world uncertainty while preserving reproducibility, and trajectory-based grading.
 
 ## OpenEnv Compliance
 
@@ -83,6 +83,26 @@ The environment includes three difficulty levels:
 - **Medium** -> Mixed signals with documentation gaps
 - **Hard** -> High-cost but medically justified case with conflicting evidence
 
+## Difficulty Design
+
+- Easy: Clear over-treatment signal -> minimal ambiguity
+- Medium: Conflicting expert opinions + incomplete documentation
+- Hard: Clinically justified high-cost case with misleading cost signals and conflicting notes
+
+The hard task requires balancing medical justification vs cost anomalies under uncertainty.
+
+## Baseline Results
+
+Baseline inference (`inference.py`) produces consistent performance across tasks:
+
+- Task 1 (Easy): ~0.93
+- Task 2 (Medium): ~0.91
+- Task 3 (Hard): ~0.93
+
+Scores are deterministic given fixed policy, with slight variation due to trajectory differences.
+
+Total runtime: < 1 minute (well within 20 min constraint)
+
 ## Reward Logic
 
 Dense reward in `env/environment.py` (`_calculate_reward`) includes:
@@ -92,7 +112,7 @@ Dense reward in `env/environment.py` (`_calculate_reward`) includes:
 - Final decision rewards vs hidden truth (`over_treatment`, `overpriced`, `escalation_needed`)
 - Missed-issue and over-reaction penalties
 - Premature decision penalties
-- Small bounded reward noise to mimic real-world uncertainty
+- Small bounded stochasticity to simulate real-world uncertainty while preserving reproducibility
 - Hard clamp to `[-1.0, 1.0]`
 
 ## Reward Properties
@@ -110,6 +130,8 @@ Unlike toy RL environments, MediGuard models real-world healthcare decision-maki
 - Conflicting expert signals
 - Cost vs safety tradeoffs
 - Delayed and incomplete information
+
+This environment is partially observable: agents must act without full information and progressively reveal evidence through actions.
 
 This makes it suitable for evaluating real agent reasoning under uncertainty.
 
