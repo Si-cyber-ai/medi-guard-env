@@ -5,3 +5,4 @@ openai==2.7.2
 openenv-core
 python-multipart
 typing-extensions
+requests

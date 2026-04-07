@@ -1,15 +1,15 @@
 import os
 
+import requests
 from openai import OpenAI
 
-from env.environment import MediGuardEnv
-from env.grader import grade_episode
 from env.tasks import TASKS
 
 
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
 MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
 API_KEY = os.getenv("HF_TOKEN")
+ENV_API_BASE = "https://sidh2005-mediguard-env.hf.space"
 
 
 def warmup_llm(client):
@@ -140,29 +140,6 @@ def main():
     warmup_llm(client)
 
     for task_idx in range(len(TASKS)):
-        env = MediGuardEnv()
-
-        task = TASKS[task_idx]
-        env.current_case = {k: v for k, v in task.items() if k != "hidden_truth"}
-        env._hidden_truth = dict(task.get("hidden_truth", {}))
-        env._visible_case = env._initial_visible_case(env.current_case)
-        env.step_count = 0
-        env.analysis_done = False
-        env.investigation_done = False
-        env.guidelines_checked = False
-        env.review_requested = False
-        env.decision_taken = False
-        env.action_history = []
-        env._reveal_state = {
-            "prescription_fully_revealed": False,
-            "notes_revealed_count": 0,
-            "itemized_costs_revealed": False,
-            "cost_confusion_shown": False,
-            "guideline_hint_revealed": False,
-            "review_notes_revealed": False,
-            "contradiction_revealed": False,
-        }
-
         action_history = []
         rewards = []
         step_count = 0
@@ -172,8 +149,9 @@ def main():
         log_start(task=f"mediguard_task_{task_idx + 1}", env="mediguard_env", model=MODEL_NAME)
 
         try:
-            # NOTE: Manual deterministic reset used to avoid randomness in TASK selection
-            observation = env._build_observation()
+            reset_response = requests.post(f"{ENV_API_BASE}/reset", timeout=30)
+            reset_response.raise_for_status()
+            observation = reset_response.json()["observation"]
             done = False
 
             while not done:
@@ -181,17 +159,26 @@ def main():
 
                 action = choose_action(observation)
 
-                observation, reward, done, info = env.step(action)
+                step_response = requests.post(
+                    f"{ENV_API_BASE}/step",
+                    json={"action": action},
+                    timeout=30,
+                )
+                step_response.raise_for_status()
+                step_payload = step_response.json()
+                observation = step_payload["observation"]
+                reward = step_payload["reward"]
+                done = step_payload["done"]
+                info = step_payload["info"]
 
                 action_history.append(action)
                 rewards.append(reward)
 
-                error = info.get("error") if isinstance(info, dict) else None
+                error = info.get("done_reason") if isinstance(info, dict) else None
                 log_step(step_count, action, reward, done, error)
 
-            # FINAL SCORE USING GRADER
-            score = grade_episode(action_history, env._hidden_truth)
-            score = max(0.0, min(score, 1.0))
+            # FINAL SCORE USING REWARD-BASED PROXY
+            score = min(1.0, max(0.0, sum(rewards) / len(rewards)))
 
             success = score > 0.5
 
