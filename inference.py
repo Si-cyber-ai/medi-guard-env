@@ -7,9 +7,9 @@ from env.grader import grade_episode
 from env.tasks import TASKS
 
 
-API_BASE_URL = os.environ["API_BASE_URL"]
+API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
 MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
-API_KEY = os.environ["API_KEY"]
+API_KEY = os.getenv("API_KEY")
 ENV_API_BASE = "https://sidh2005-mediguard-env.hf.space"
 _OPENAI_CLIENT = None
 
