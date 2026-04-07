@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from typing import Optional
 
 from env.environment import MediGuardEnv
-from env.models import ActionModel
+from env.models import ACTION_SPACE, ReasoningBlock
 
 
 app = FastAPI()
@@ -14,10 +14,13 @@ env = MediGuardEnv()
 
 class StepRequest(BaseModel):
     action: str
+    reasoning: Optional[ReasoningBlock] = None
 
 
 @app.post("/reset")
 def reset():
+    global env
+    env = MediGuardEnv()  # fresh environment per episode
     observation = env.reset()
     return {
         "observation": observation
@@ -27,6 +30,15 @@ def reset():
 @app.post("/step")
 def step(request: StepRequest):
     try:
+        # Validate action early
+        if request.action not in ACTION_SPACE:
+            return {
+                "observation": env._build_observation(),
+                "reward": -0.1,
+                "done": False,
+                "info": {"error": "Invalid action"}
+            }
+
         observation, reward, done, info = env.step(request.action)
 
         return {
@@ -38,7 +50,10 @@ def step(request: StepRequest):
 
     except Exception as e:
         return {
-            "error": str(e)
+            "observation": env._build_observation(),
+            "reward": 0.0,
+            "done": True,
+            "info": {"error": str(e)}
         }
 
 
@@ -49,7 +64,10 @@ def state():
 
 @app.get("/")
 def root():
-    return {"message": "MediGuard-Env API running"}
+    return {
+        "status": "ok",
+        "env": "MediGuard-Env"
+    }
 
 
 # Run with:
