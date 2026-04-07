@@ -54,7 +54,7 @@ class MediGuardEnv:
         if not TASKS:
             raise ValueError("TASKS is empty; at least one task must be defined")
 
-        task = random.choice(TASKS)
+        task = TASKS[self.task_index]
         self.task_index = (self.task_index + 1) % len(TASKS)
 
         self.current_case = {k: v for k, v in task.items() if k != "hidden_truth"}
@@ -141,8 +141,9 @@ class MediGuardEnv:
             reward += progress_rewards[action]
 
         # Penalize repeated actions to discourage loops.
-        if self.action_history.count(action) > 1:
-            reward -= 0.05
+        count = self.action_history.count(action)
+        if count > 1:
+            reward -= 0.1 * count
 
         # Penalize over-review loops (requesting review more than once).
         if action == "request_review" and self.review_requested:
@@ -159,11 +160,19 @@ class MediGuardEnv:
         over_treatment = bool(self._hidden_truth.get("is_over_treatment", False))
         overpriced = bool(self._hidden_truth.get("is_overpriced", False))
         escalation_needed = bool(self._hidden_truth.get("escalation_needed", False))
+        uncertainty = self._hidden_truth.get("uncertainty_level")
         issue_exists = over_treatment or overpriced
 
         # Decision rewards aligned to hidden ground truth.
         if action == "flag_issue":
-            reward += 0.6 if issue_exists else -0.4
+            if issue_exists and not escalation_needed:
+                reward += 0.6
+            else:
+                reward -= 0.2
+
+        # Optional uncertainty pressure for deceptive hard cases.
+        if uncertainty == "high_misleading" and action == "flag_issue":
+            reward -= 0.2
 
         if action == "approve_case":
             reward += 0.6 if not issue_exists else -0.7
@@ -214,7 +223,11 @@ class MediGuardEnv:
         if self.step_count >= self.max_steps and not self.decision_taken:
             reward -= 0.2
 
-        # Keep reward bounded for stable optimization (deterministic for reproducibility).
+        # Add bounded stochasticity for realism.
+        random.seed(self.step_count + len(self.action_history))
+        reward += random.uniform(-0.02, 0.02)
+
+        # Keep reward bounded for stable optimization.
         reward = max(-1.0, min(1.0, reward))
         return float(reward)
 

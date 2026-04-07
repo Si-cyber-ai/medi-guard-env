@@ -16,6 +16,8 @@ MediGuard-Env is an OpenEnv-compatible AI environment for healthcare billing aud
 
 Healthcare billing review requires balancing patient safety, fraud detection, and escalation risk. Over-aggressive flagging can delay care, while under-detection can allow over-treatment or overpricing. MediGuard-Env models this tradeoff with staged evidence reveal, bounded stochasticity to simulate real-world uncertainty while preserving reproducibility, and trajectory-based grading.
 
+This environment includes bounded stochasticity with deterministic seeding to preserve reproducibility while simulating real-world uncertainty.
+
 ## OpenEnv Compliance
 
 This environment implements the full OpenEnv interface:

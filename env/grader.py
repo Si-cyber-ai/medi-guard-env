@@ -45,7 +45,7 @@ def grade_episode(action_history: List[str], hidden_truth: Dict[str, Any]) -> fl
 
     # A. Final decision correctness (max +0.5)
     if final_action == "flag_issue":
-        score += 0.48 if issue_exists else 0.1
+        score += 0.48 if issue_exists else 0.0
 
     if final_action == "approve_case":
         score += 0.5 if not issue_exists else 0.0
@@ -58,11 +58,40 @@ def grade_episode(action_history: List[str], hidden_truth: Dict[str, Any]) -> fl
         else:
             score += 0.0
 
+    expected_action = hidden_truth.get("expected_best_action")
+    if expected_action:
+        if final_action != expected_action:
+            score -= 0.2
+
+    # 🔥 CRITICAL: Penalize weak reasoning even if final decision is correct
+    if issue_exists:
+        # Must have full reasoning path
+        if not (
+            "analyze_case" in action_history
+            and "investigate_cost" in action_history
+            and "check_guidelines" in action_history
+        ):
+            score -= 0.2
+
+    # Penalize shallow or naive trajectories
+    if issue_exists:
+        if len(action_history) <= 3:
+            score -= 0.1
+
+    # Penalize over-reliance on request_review (weak strategy)
+    if action_history.count("request_review") > 0:
+        score -= 0.1
+
+    # Penalize if trajectory had negative signals (bad reasoning path).
+    if len(action_history) >= 3:
+        if action_history.count("investigate_cost") > 1:
+            score -= 0.1
+
     # B. Reasoning quality (max +0.3)
-    if "analyze_case" in action_history:
+    if "analyze_case" in action_history and len(action_history) > 1:
         score += 0.1
 
-    if "investigate_cost" in action_history:
+    if "investigate_cost" in action_history and issue_exists:
         score += 0.1
 
     if "check_guidelines" in action_history or "request_review" in action_history:
@@ -103,6 +132,11 @@ def grade_episode(action_history: List[str], hidden_truth: Dict[str, Any]) -> fl
     if final_action in {"flag_issue", "approve_case"} and "check_guidelines" not in action_history:
         score -= 0.1
 
+    # Penalize shallow reasoning for complex cases.
+    if issue_exists:
+        if "check_guidelines" not in action_history:
+            score -= 0.15
+
     # Penalize missing investigation when issues actually exist.
     if issue_exists and "investigate_cost" not in action_history:
         score -= 0.1
@@ -115,9 +149,31 @@ def grade_episode(action_history: List[str], hidden_truth: Dict[str, Any]) -> fl
     if issue_exists and final_action == "approve_case":
         score -= 0.3
 
+    # Penalize bad trajectory even if final decision is correct.
+    if issue_exists and action_history.count("request_review") > 1:
+        score -= 0.2
+
+    # 🔥 Penalize incorrect decision type even if issue exists.
+    if issue_exists:
+        if escalation_needed and final_action == "flag_issue":
+            score -= 0.25
+
+    # Penalize mismatch between reward signal and decision confidence.
+    if final_action == "flag_issue" and escalation_needed:
+        score -= 0.15
+
+    # Strong penalty for wrong decision on no-issue cases.
+    if not issue_exists and final_action == "flag_issue":
+        score -= 0.3
+
     # E. Over-reaction penalty
     if not issue_exists and final_action == "escalate_case":
         score -= 0.3
+
+    # Optional contradiction-awareness bonus.
+    if hidden_truth.get("uncertainty_level") == "high_misleading":
+        if "check_guidelines" in action_history:
+            score += 0.05
 
     # Clamp score to valid OpenEnv range.
     score = max(0.0, min(1.0, score))

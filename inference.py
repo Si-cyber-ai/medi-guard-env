@@ -7,9 +7,9 @@ from env.grader import grade_episode
 from env.tasks import TASKS
 
 
-API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
+API_BASE_URL = os.environ["API_BASE_URL"]
 MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
-API_KEY = os.getenv("HF_TOKEN")
+API_KEY = os.environ["API_KEY"]
 ENV_API_BASE = "https://sidh2005-mediguard-env.hf.space"
 _OPENAI_CLIENT = None
 
@@ -57,150 +57,119 @@ def build_reasoning(observation, action):
 
 
 def decide_final_action_with_llm(observation):
-    case = observation.get("current_case", {}) or {}
-    notes = case.get("notes", []) or []
-    anomalies = case.get("cost_anomalies", []) or []
-    hints = case.get("guideline_hints", []) or []
-    flags = case.get("audit_flags", []) or []
-    progress = observation.get("progress", {})
+    prompt = f"""
+You are a healthcare billing auditor.
 
-    prompt = (
-        "You are a healthcare billing auditor.\n"
-        "Your goal is to avoid BOTH:\n"
-        "- False flags (flagging correct cases)\n"
-        "- Missed issues (approving bad cases)\n\n"
+Choose ONE action:
+approve_case OR flag_issue OR escalate_case
 
-        "Decision rules:\n"
-        "- If cost anomaly WITHOUT medical justification → flag_issue\n"
-        "- If high medical risk JUSTIFIES cost → approve_case\n"
-        "- If both anomaly AND risk → prefer approve_case or request_review (NOT flag_issue)\n\n"
+Case:
+{observation}
 
-        "Return ONLY one word:\n"
-        "approve_case OR flag_issue OR escalate_case\n\n"
+Answer with ONLY the action name.
+"""
 
-        f"CASE:\n{case}\n\n"
-        f"NOTES:\n{notes}\n\n"
-        f"ANOMALIES:\n{anomalies}\n\n"
-        f"HINTS:\n{hints}\n"
+    response = _OPENAI_CLIENT.chat.completions.create(
+        model=MODEL_NAME,
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.2,
+        max_tokens=5,
     )
 
-    client = _OPENAI_CLIENT
-    if client is not None:
-        try:
-            response = client.chat.completions.create(
-                model=MODEL_NAME,
-                messages=[
-                    {"role": "system", "content": "You are a strict decision engine."},
-                    {"role": "user", "content": prompt},
-                ],
-                temperature=0.2,
-                max_tokens=8,
-            )
-            content = (response.choices[0].message.content or "").strip().lower()
-            valid_actions = ["approve_case", "flag_issue", "escalate_case"]
+    content = (response.choices[0].message.content or "").strip().lower()
 
-            # HARD CORRECTION LAYER (CRITICAL)
-            combined_text = " ".join(str(x).lower() for x in [*notes, *hints])
-            high_risk = any(k in combined_text for k in [
-                "genetic", "aneurysm", "vascular", "anticoagulation"
-            ])
-            has_anomaly = len(anomalies) > 0
+    if content in ["approve_case", "flag_issue", "escalate_case"]:
+        return content
 
-            # If LLM tries to flag a high-risk case → override
-            if "flag_issue" in content and high_risk:
-                return "approve_case"
+    return "investigate_cost"
 
-            for action in valid_actions:
-                if content == action:
-                    return action
 
-            for action in valid_actions:
-                if action in content:
-                    return action
-        except Exception:
-            return "request_review" if not anomalies else "flag_issue"
-
-    # Balanced fallback if the LLM is unavailable or returns an invalid value.
-    combined_text = " ".join(str(x).lower() for x in [*notes, *hints])
-    risk_keywords = {
-        "genetic",
-        "aneurysm",
-        "vascular",
-        "severe",
-        "confusion",
-        "anticoagulation",
-    }
-    high_risk = any(keyword in combined_text for keyword in risk_keywords)
-    has_anomaly = len(anomalies) > 0
-    if any("high-cost" in str(flag).lower() for flag in flags):
-        has_anomaly = True
-
-    # Balanced final decision logic (CRITICAL)
-
-    if has_anomaly and not high_risk:
-        return "flag_issue"
-
-    if has_anomaly and high_risk:
-        return "request_review"
-
-    if high_risk and not has_anomaly:
-        return "approve_case"
-
-    # fallback for unclear
-    return "request_review"
+def ensure_real_llm_call(client):
+    """Guarantee at least one successful LLM call through proxy."""
+    try:
+        response = client.chat.completions.create(
+            model=MODEL_NAME,
+            messages=[{"role": "user", "content": "Say OK"}],
+            max_tokens=2,
+        )
+        # Ensure response is valid (not silent fail)
+        if not response or not response.choices:
+            raise ValueError("Empty LLM response")
+    except Exception as e:
+        print(f"[ERROR] LLM proxy call failed: {e}", flush=True)
+        raise e
 
 
 def choose_action(observation):
     p = observation.get("progress", {})
+    last_action = observation.get("last_action")
 
-    if not p.get("analysis_done", False):
-        return "analyze_case"
-    if not p.get("investigation_done", False):
-        return "investigate_cost"
-    if not p.get("guidelines_checked", False):
-        return "check_guidelines"
+    if last_action == "request_review":
+        if not p.get("analysis_done"):
+            return "analyze_case"
+        elif not p.get("investigation_done"):
+            return "investigate_cost"
+        elif not p.get("guidelines_checked"):
+            return "check_guidelines"
+        else:
+            return decide_final_action_with_llm(observation)
 
-    case = observation.get("current_case", {}) or {}
+    if p.get("analysis_done") and p.get("investigation_done") and p.get("guidelines_checked"):
+        return decide_final_action_with_llm(observation)
 
-    text = " ".join(str(x).lower() for x in [
-        *(case.get("notes", []) or []),
-        *(case.get("guideline_hints", []) or []),
-        *(case.get("audit_flags", []) or []),
-    ])
+    prompt = f"""
+You are an AI healthcare auditor.
 
-    # STRICT HIGH RISK (only hard case)
-    high_risk = any(k in text for k in [
-        "genetic",
-        "aneurysm",
-        "genetics clinic",
-        "vascular subtype",
-    ])
+Available actions:
+analyze_case, investigate_cost, check_guidelines,
+request_review, flag_issue, approve_case, escalate_case
 
-    # STRONG anomaly detection (fix)
-    has_anomaly = (
-        len(case.get("cost_anomalies", []) or []) > 0
-        or "icu" in text
-        or "high-cost" in text
-        or "protocol-triggered icu" in text
-    )
+Current state:
+{observation}
 
-    # FINAL DECISION
-    if high_risk:
-        return "approve_case"
+Choose the BEST next action.
 
-    if has_anomaly:
-        return "flag_issue"
+Rules:
+- Don't jump to final decision too early
+- Gather enough evidence
+- Avoid unnecessary steps
 
-    if not p.get("review_requested", False):
-        return "request_review"
+Return ONLY the action name.
+"""
 
-    return "approve_case"
+    try:
+        response = _OPENAI_CLIENT.chat.completions.create(
+            model=MODEL_NAME,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
+            max_tokens=5,
+        )
+
+        action = (response.choices[0].message.content or "").strip().lower()
+
+        if action in [
+            "analyze_case",
+            "investigate_cost",
+            "check_guidelines",
+            "request_review",
+            "flag_issue",
+            "approve_case",
+            "escalate_case",
+        ]:
+            return action
+
+    except Exception:
+        pass
+
+    # fallback (safe but NOT perfect)
+    return "request_review"
 
 
 def main():
     client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
     global _OPENAI_CLIENT
     _OPENAI_CLIENT = client
+    print(f"[DEBUG] Using API_BASE_URL={API_BASE_URL}", flush=True)
 
     for task_idx in range(len(TASKS)):
         hidden_truth = TASKS[task_idx]["hidden_truth"]
@@ -217,6 +186,8 @@ def main():
             reset_response.raise_for_status()
             observation = reset_response.json()["observation"]
             done = False
+
+            ensure_real_llm_call(client)
 
             while not done:
                 step_count += 1
@@ -246,7 +217,7 @@ def main():
             score = grade_episode(action_history, hidden_truth)
             score = min(1.0, max(0.0, score))
 
-            success = score > 0.5
+            success = score > 0.7
 
         except Exception:
             score = 0.0
