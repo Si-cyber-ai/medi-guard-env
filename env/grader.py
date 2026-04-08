@@ -39,7 +39,7 @@ def grade_episode(action_history: List[str], hidden_truth: Dict[str, Any]) -> fl
 
     # No trajectory means no evidence of reasoning or decision quality.
     if not action_history:
-        return 1e-6
+        return 0.01
 
     final_action = action_history[-1]
 
@@ -185,16 +185,14 @@ def grade_episode(action_history: List[str], hidden_truth: Dict[str, Any]) -> fl
         if "check_guidelines" in action_history:
             score += 0.05
 
-    epsilon = 1e-6
-
     # Normalize score
     score = float(score)
 
-    # Strict bounding
-    score = max(epsilon, min(1.0 - epsilon, score))
+    # 🔥 SAFE BOUNDS (NO FLOAT EDGE)
+    score = max(0.01, min(0.99, score))
 
-    # Final safety (ABSOLUTE GUARANTEE)
+    # 🔥 FINAL GUARANTEE
     if not (0.0 < score < 1.0):
-        score = epsilon
+        score = 0.01
 
     return score
