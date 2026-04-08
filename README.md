@@ -98,10 +98,10 @@ The hard task requires balancing medical justification vs cost anomalies under u
 Baseline inference (`inference.py`) produces consistent performance across tasks:
 
 - Task 1 (Easy): ~0.93
-- Task 2 (Medium): ~0.91
-- Task 3 (Hard): ~0.93
+- Task 2 (Medium): ~0.73
+- Task 3 (Hard): ~0.00 (very challenging case)
 
-Scores are deterministic given fixed policy, with slight variation due to trajectory differences.
+Scores are deterministic given fixed policy.
 
 Total runtime: < 1 minute (well within 20 min constraint)
 
@@ -122,7 +122,7 @@ Dense reward in `env/environment.py` (`_calculate_reward`) includes:
 - Step rewards: continuous signal
 - Final reward: correctness-based
 - Reward range: **[-1.0, 1.0]**
-- Grader output range: **[0.0, 1.0]**
+- Grader output range: **(0.0, 1.0)** (strictly bounded using epsilon)
 
 ## Why This Environment Matters
 
@@ -147,6 +147,14 @@ This makes it suitable for evaluating real agent reasoning under uncertainty.
 
 Agents must balance safety, cost, and uncertainty to maximize reward.
 
+## Design Highlights
+
+- Trajectory-based grading (not just final action)
+- Partial observability with progressive evidence reveal
+- Conflicting multi-source signals (clinical vs billing vs protocol)
+- Anti-repetition penalties to prevent trivial strategies
+- Deterministic scoring with bounded stochastic rewards
+
 ## Deterministic Grader
 
 `env/grader.py` provides `grade_episode(action_history, hidden_truth) -> float`.
@@ -155,7 +163,7 @@ Agents must balance safety, cost, and uncertainty to maximize reward.
 - Uses full trajectory (not only final action)
 - Scores decision correctness + reasoning quality
 - Applies behavior penalties
-- Returns clamped score in `[0.0, 1.0]`
+- Returns clamped score in (0.0, 1.0)
 
 ## Setup Instructions
 
@@ -199,7 +207,7 @@ Set environment variables (example):
 ```powershell
 $env:API_BASE_URL = "https://router.huggingface.co/v1"
 $env:MODEL_NAME = "Qwen/Qwen2.5-72B-Instruct"
-$env:HF_TOKEN = "<your_token>"
+$env:API_KEY = "<provided_by_platform>"
 python inference.py
 ```
 
