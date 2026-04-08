@@ -28,7 +28,8 @@ def log_step(step, action, reward, done, error):
 
 def log_end(success, steps, score, rewards):
     rewards_str = ",".join(f"{r:.2f}" for r in rewards)
-    print(f"[END] success={str(success).lower()} steps={steps} score={score:.6f} rewards={rewards_str}", flush=True)
+    safe_score = min(max(score, 1e-6), 0.999999)
+    print(f"[END] success={str(success).lower()} steps={steps} score={safe_score:.6f} rewards={rewards_str}", flush=True)
 
 
 def build_reasoning(observation, action):
@@ -229,7 +230,11 @@ def main():
                 log_step(step_count, action, reward, done, error)
 
             # FINAL SCORE USING DETERMINISTIC GRADER
-            score = grade_episode(action_history, hidden_truth)
+            if not action_history:
+                score = 0.01
+            else:
+                score = grade_episode(action_history, hidden_truth)
+
             score = max(1e-6, min(0.999999, float(score)))
             if score <= 1e-6:
                 score = 0.01
