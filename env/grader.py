@@ -175,6 +175,7 @@ def grade_episode(action_history: List[str], hidden_truth: Dict[str, Any]) -> fl
         if "check_guidelines" in action_history:
             score += 0.05
 
-    # Clamp score to valid OpenEnv range.
-    score = max(0.0, min(1.0, score))
+    # Clamp score to STRICT (0,1) range for validator
+    epsilon = 1e-6
+    score = max(epsilon, min(1.0 - epsilon, score))
     return float(score)
