@@ -35,13 +35,23 @@ def grade_episode(action_history: List[str], hidden_truth: Dict[str, Any]) -> fl
     escalation_needed = bool(hidden_truth.get("escalation_needed", False))
     issue_exists = is_over_treatment or is_overpriced
 
-    score = 0.0
+    score = 0.2  # baseline to avoid collapse to epsilon
 
     # No trajectory means no evidence of reasoning or decision quality.
     if not action_history:
-        return score
+        return 1e-6
 
     final_action = action_history[-1]
+
+    # 🔥 PROTECT single-step trajectories from over-penalization
+    if len(action_history) == 1:
+        base = 0.3
+        if final_action == "approve_case":
+            return 0.4 if not issue_exists else 0.2
+        if final_action == "flag_issue":
+            return 0.4 if issue_exists else 0.2
+        if final_action == "escalate_case":
+            return 0.4 if escalation_needed else 0.2
 
     # A. Final decision correctness (max +0.5)
     if final_action == "flag_issue":
@@ -175,7 +185,16 @@ def grade_episode(action_history: List[str], hidden_truth: Dict[str, Any]) -> fl
         if "check_guidelines" in action_history:
             score += 0.05
 
-    # Clamp score to STRICT (0,1) range for validator
     epsilon = 1e-6
+
+    # Normalize score
+    score = float(score)
+
+    # Strict bounding
     score = max(epsilon, min(1.0 - epsilon, score))
-    return float(score)
+
+    # Final safety (ABSOLUTE GUARANTEE)
+    if not (0.0 < score < 1.0):
+        score = epsilon
+
+    return score
