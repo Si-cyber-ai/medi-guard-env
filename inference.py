@@ -233,11 +233,15 @@ def main():
             if not action_history:
                 score = 0.01
             else:
-                score = grade_episode(action_history, hidden_truth)
+                raw_score = grade_episode(action_history, hidden_truth)
 
-            score = max(1e-6, min(0.999999, float(score)))
-            if score <= 1e-6:
-                score = 0.01
+                # 🔥 HARD clamp BEFORE any float issues
+                if raw_score >= 0.999999:
+                    score = 0.999999
+                elif raw_score <= 1e-6:
+                    score = 0.01
+                else:
+                    score = max(0.01, min(float(raw_score), 0.999999))
 
             success = score > 0.7
 
