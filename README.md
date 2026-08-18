@@ -259,3 +259,9 @@ curl -X POST https://<space-name>.hf.space/reset
 - Enhanced `openenv.yaml` metadata with `version`, long-form `description`, and deployment `tags` for better compatibility and clarity.
 - Switched `openenv.yaml` `description` to a single-line string to eliminate YAML block scalar indentation issues.
 - Finalized `requirements.txt` with the submission-safe dependency set, including `openenv-core`, `python-multipart`, and `typing-extensions`.
+
+## Features
+
+- Environment monitoring
+- Score normalization
+- Automated grading
