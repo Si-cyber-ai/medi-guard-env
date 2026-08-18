@@ -1,15 +1,10 @@
-```yaml
----
-title: "MediGuard Env 🏥"
-emoji: "🏥"
-colorFrom: "blue"
-colorTo: "green"
-sdk: "docker"
-app_file: "api.py"
-pinned: true
----
-```
+🏥 MediGuard Env
 
+<p align="center"> <b>An OpenEnv-compatible AI environment for healthcare billing audit and legal escalation decisions.</b> </p>
+
+<p align="center"> <img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python"> <img src="https://img.shields.io/badge/Docker-Ready-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker"> <img src="https://img.shields.io/badge/OpenEnv-Compatible-2EA44F?style=for-the-badge" alt="OpenEnv"> <img src="https://img.shields.io/badge/AI%2FML-Environment-8A2BE2?style=for-the-badge" alt="AI/ML"> </p>
+
+<p align="center"> <a href="#-overview">Overview</a> • <a href="#-features">Features</a> • <a href="#-architecture">Architecture</a> • <a href="#-getting-started">Getting Started</a> • <a href="#-project-structure">Structure</a> </p>
 # MediGuard-Env
 
 MediGuard-Env is an OpenEnv-compatible AI environment for healthcare billing audit and legal escalation decisions. It simulates realistic claim-review uncertainty where agents must inspect evidence, detect anomalies, and choose safe outcomes (`approve_case`, `flag_issue`, `escalate_case`) under partial observability.
