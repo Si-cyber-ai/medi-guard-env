@@ -1,12 +1,14 @@
+```yaml
 ---
-title: "MediGuard Env"
+title: "MediGuard Env 🏥"
 emoji: "🏥"
 colorFrom: "blue"
 colorTo: "green"
 sdk: "docker"
 app_file: "api.py"
-pinned: false
+pinned: true
 ---
+```
 
 # MediGuard-Env
 
